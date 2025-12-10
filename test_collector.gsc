@@ -38,7 +38,7 @@ function autoexec init()
 
 	level.total_fillers = collectors.size;
 
-	IPrintLnBold ("total collectors: " + level.total_fillers);
+	IPrintLnBold ("total collectors: " + level.total_fillers); //not printing
 
 	array::thread_all( collectors, &init_collectors );
 }
@@ -60,7 +60,7 @@ function init_collectors()
 
 function wait_to_activate ()
 {
-	if ( !isdefined(self.script_flag) || self.script_flag == "" )
+	if ( !isdefined(self.script_flag) || self.script_flag == "" ) //find first filler
 	{
 		self.active = true;
 		self Show ();
@@ -68,7 +68,7 @@ function wait_to_activate ()
 		if (isdefined(self.script_firefx))
 			PlayFXOnTag(self.script_firefx, self, "tag_origin");
 	}
-	else if ( isdefined(self.script_notify) && isdefined (self.script_flag) )
+	else if ( isdefined(self.script_notify) && isdefined (self.script_flag) ) //checks that filler needs flag to initiate
 	{
 		flag = self.script_flag;
 		self.active = false;
@@ -86,6 +86,7 @@ function wait_to_activate ()
 
 function watch_for_death()
 {
+	// self = zombie
 	// Put an Endon here for when collection has completed
 	self waittill( "death" );
 	collector = ArrayGetClosest( self.origin, level.collectors );
@@ -100,15 +101,15 @@ function watch_for_death()
 
 function can_collect( origin, collector )
 {
-	if( Distance( origin, collector.origin ) > level.max_distance ) 
+	if( Distance( origin, collector.origin ) > level.max_distance ) //check if zombie death is within filler range
 	{
 		return false;
 	}
-	if( level.line_of_sight && !BulletTracePassed( origin, collector.origin + ( 0, 0, 50 ), false, self ) ) 
+	if( level.line_of_sight && !BulletTracePassed( origin, collector.origin + ( 0, 0, 50 ), false, self ) ) //not sure - I'm just keeping false
 	{
 		return false;
 	}
-	if( !isdefined(collector.active) || !collector.active )
+	if( !isdefined(collector.active) || !collector.active ) //check for closest collector active flag
 	{
 		return false;
 	}
@@ -117,6 +118,7 @@ function can_collect( origin, collector )
 
 function soul_travel( origin )
 {
+	//self = collector
 	target = self.origin;
 	fx_origin = util::spawn_model( "tag_origin", origin + ( 0, 0, 30 ) );
 	self thread cleanup_fx_origin( fx_origin );
@@ -144,17 +146,17 @@ function each_count() //self = collector
 
 	if( self.script_int <= 0 ) 
 	{
-		/*
-		if (isdefined(self.target))
+		if (isdefined(self.target)) //modified this logic, have not tested yet
 		{
 			IPrintLnBold ("entered move function");
-			next = self.target;
+			next_loc_struct = struct::get (self.target,"targetname"); // may not be needed
+			next_loc = util::spawn_model ("tag_origin", self.target);
 			wait_time = self.script_waittime;
-			self MoveTo (next.origin, wait_time);
+			self MoveTo (next_loc.origin, wait_time);
 			self waittill ("movedone");
-			next Delete ();
+			next_loc Delete ();
+			next_loc_struct Delete ();
 		}
-		*/
 
 		if (isdefined(self.script_notify))
 		{
@@ -197,4 +199,5 @@ function single_reward()
 	// level.collectors_complete++;
 	IPrintLnBold ("You completed it");
 	IPrintLnBold ("only " + level.collectors_remain + " remaining");
+
 }
