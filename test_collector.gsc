@@ -14,6 +14,11 @@
 #precache( "fx", "light/fx_glow_green_antenna");
 #precache( "fx", "zombie/fx_powerup_grab_green_zmb");
 
+//**********************
+//UPDATE - DEC 10*******
+//**********************
+//The below code is working in-game, but I feel like it's not the most efficient
+
 function autoexec init()
 {
 	level waittill ("initial_blackscreen_passed");
@@ -201,3 +206,4 @@ function single_reward()
 	IPrintLnBold ("only " + level.collectors_remain + " remaining");
 
 }
+
