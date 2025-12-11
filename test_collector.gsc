@@ -124,6 +124,7 @@ function can_collect( origin, collector )
 function soul_travel( origin )
 {
 	//self = collector
+	//origin = zombie origin
 	target = self.origin;
 	fx_origin = util::spawn_model( "tag_origin", origin + ( 0, 0, 30 ) );
 	self thread cleanup_fx_origin( fx_origin );
@@ -153,39 +154,28 @@ function each_count() //self = collector
 	{
 		if (isdefined(self.target)) //modified this logic, have not tested yet
 		{
-			IPrintLnBold ("entered move function");
-			next_loc_struct = struct::get (self.target,"targetname"); // may not be needed
-			next_loc = util::spawn_model ("tag_origin", self.target);
-			wait_time = self.script_waittime;
-			self MoveTo (next_loc.origin, wait_time);
-			self waittill ("movedone");
-			next_loc Delete ();
-			next_loc_struct Delete ();
+			soul_move = struct::get (self.target, "targetname");
+			move_to = util::spawn_model( "tag_origin", soul_move.origin );
+			if (isdefined(soul_move))
+			{
+				IPrintLnBold ( "entered soul move correctly" );
+				//how_long = self.script_waittime;
+				//IPrintLnBold ("Time to move: " + how_long );
+				self MoveTo (soul_move.origin, 3);
+				wait (3);
+				//soul_move Delete ();
+			}
+			
+			if (isdefined(self.script_notify))
+			{
+				flag = self.script_notify;
+				level notify ( flag );
+				level flag::set ( flag );
+			}
+	
+			ArrayRemoveValue( level.collectors, self );
+			self Delete ();
 		}
-
-		if (isdefined(self.script_notify))
-		{
-			flag = self.script_notify;
-			level notify ( flag );
-			level flag::set ( flag );
-		}
-
-		ArrayRemoveValue( level.collectors, self );
-		self Delete ();
-
-		//total_count ();
-	}
-}
-
-function total_count ()
-{
-	level.collectors_complete++;
-	level.collectors_remain = level.total_fillers - level.collectors_complete;
-
-	if (level.collectors_complete >= level.collectors.size)
-	{
-		single_reward ();
-	}
 }
 
 function cleanup_fx_origin( fx_origin )
@@ -206,4 +196,5 @@ function single_reward()
 	IPrintLnBold ("only " + level.collectors_remain + " remaining");
 
 }
+
 
