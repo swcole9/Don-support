@@ -19,6 +19,11 @@
 //**********************
 //The below code is working in-game, but I feel like it's not the most efficient
 
+//**********************
+//UPDATE - DEC 13*******
+//**********************
+//Add collector fx delay until after first kill
+
 function autoexec init()
 {
 	level waittill ("initial_blackscreen_passed");
@@ -43,8 +48,6 @@ function autoexec init()
 
 	level.total_fillers = collectors.size;
 
-	IPrintLnBold ("total collectors: " + level.total_fillers); //not printing
-
 	array::thread_all( collectors, &init_collectors );
 }
 
@@ -58,7 +61,9 @@ function init_collectors()
 	{
 		self.script_int = level.kills_needed;
 	}
-	
+
+	self.max_kills = self.script_int;
+
 	wait (0.05);
 	self thread wait_to_activate();
 }
@@ -69,10 +74,8 @@ function wait_to_activate ()
 	{
 		self.active = true;
 		self Show ();
-
-		if (isdefined(self.script_firefx))
-			PlayFXOnTag(self.script_firefx, self, "tag_origin");
 	}
+
 	else if ( isdefined(self.script_notify) && isdefined (self.script_flag) ) //checks that filler needs flag to initiate
 	{
 		flag = self.script_flag;
@@ -83,9 +86,6 @@ function wait_to_activate ()
 		
 		self.active = true;
 		self Show ();
-
-		if (isdefined(self.script_firefx))
-			PlayFXOnTag(self.script_firefx, self, "tag_origin");
 	}
 }
 
@@ -93,6 +93,7 @@ function watch_for_death()
 {
 	// self = zombie
 	// Put an Endon here for when collection has completed
+
 	self waittill( "death" );
 	collector = ArrayGetClosest( self.origin, level.collectors );
 	if( isdefined( collector ) ) 
@@ -125,6 +126,7 @@ function soul_travel( origin )
 {
 	//self = collector
 	//origin = zombie origin
+
 	target = self.origin;
 	fx_origin = util::spawn_model( "tag_origin", origin + ( 0, 0, 30 ) );
 	self thread cleanup_fx_origin( fx_origin );
@@ -137,6 +139,12 @@ function soul_travel( origin )
 	fx_origin waittill( "movedone" );
 	self PlaySound( level.collection_sound );
 	PlayFX( level._effect["collection_fx"], target );
+	
+	if (isdefined(self.script_firefx) && self.script_int == self.max_kills)
+	{
+		PlayFXOnTag(self.script_firefx, self, "tag_origin");
+	}
+
 	if( isdefined( fx_origin ) ) 
 	{
 		fx_origin Delete();
@@ -161,7 +169,7 @@ function each_count() //self = collector
 				IPrintLnBold ( "entered soul move correctly" );
 				//how_long = self.script_waittime;
 				//IPrintLnBold ("Time to move: " + how_long );
-				self MoveTo (soul_move.origin, 3);
+				self MoveTo (soul_move.origin, 3); //manually input 3, variable not working for number
 				wait (3);
 				//soul_move Delete ();
 			}
@@ -192,9 +200,7 @@ function single_reward()
 {
 	// Make up some logic if you want a reward upon completion of a single collector
 	// level.collectors_complete++;
-	IPrintLnBold ("You completed it");
-	IPrintLnBold ("only " + level.collectors_remain + " remaining");
-
 }
+
 
 
