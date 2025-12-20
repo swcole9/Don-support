@@ -24,6 +24,11 @@
 //**********************
 //Add collector fx delay until after first kill
 
+//**********************
+//UPDATE - DEC 20*******
+//**********************
+//Added wait if soul is travelling before accepting next soul
+
 function autoexec init()
 {
 	level waittill ("initial_blackscreen_passed");
@@ -45,7 +50,6 @@ function autoexec init()
 	level._effect["collection_fx"] = "zombie/fx_powerup_grab_green_zmb"; // collection fx
 
 	collectors = GetEntArray( "custom_soul_box", "targetname" );
-
 	level.total_fillers = collectors.size;
 
 	array::thread_all( collectors, &init_collectors );
@@ -65,23 +69,30 @@ function init_collectors()
 	self.max_kills = self.script_int;
 
 	wait (0.05);
+
+	self.is_traveling = false;
+
 	self thread wait_to_activate();
 }
 
-function wait_to_activate ()
+function wait_to_activate()
 {
-	if ( !isdefined(self.script_flag) || self.script_flag == "" ) //find first filler
+	if ( !isdefined(self.script_flag) || self.script_flag == "" )
 	{
 		self.active = true;
 		self Show ();
 	}
 
-	else if ( isdefined(self.script_notify) && isdefined (self.script_flag) ) //checks that filler needs flag to initiate
+	else if ( isdefined(self.script_notify) && isdefined (self.script_flag) )
 	{
 		flag = self.script_flag;
 		self.active = false;
 		
-		level flag::init ( flag );
+		if (!level flag::exists(flag)) //claude ai update to avoid duplicate flag init
+		{
+			level flag::init ( flag );
+		}
+
 		level flag::wait_till ( flag );
 		
 		self.active = true;
@@ -91,8 +102,10 @@ function wait_to_activate ()
 
 function watch_for_death()
 {
-	// self = zombie
+	//self = zombie
 	// Put an Endon here for when collection has completed
+	if (level.collectors.size == 0)
+		return;
 
 	self waittill( "death" );
 	collector = ArrayGetClosest( self.origin, level.collectors );
@@ -107,25 +120,34 @@ function watch_for_death()
 
 function can_collect( origin, collector )
 {
-	if( Distance( origin, collector.origin ) > level.max_distance ) //check if zombie death is within filler range
+	if( Distance( origin, collector.origin ) > level.max_distance ) 
 	{
 		return false;
 	}
-	if( level.line_of_sight && !BulletTracePassed( origin, collector.origin + ( 0, 0, 50 ), false, self ) ) //not sure - I'm just keeping false
+	/*
+	if( level.line_of_sight && !BulletTracePassed( origin, collector.origin + ( 0, 0, 50 ), false, self ) ) 
 	{
 		return false;
 	}
-	if( !isdefined(collector.active) || !collector.active ) //check for closest collector active flag
+	*/
+	if( !isdefined(collector.active) || !collector.active )
 	{
 		return false;
 	}
+	if( isdefined(collector.is_traveling) && collector.is_traveling)
+	{
+		return false;
+	}
+
 	return true;
 }
 
 function soul_travel( origin )
 {
-	//self = collector
+	//self = collector model
 	//origin = zombie origin
+
+	self.is_traveling = true;
 
 	target = self.origin;
 	fx_origin = util::spawn_model( "tag_origin", origin + ( 0, 0, 30 ) );
@@ -139,10 +161,13 @@ function soul_travel( origin )
 	fx_origin waittill( "movedone" );
 	self PlaySound( level.collection_sound );
 	PlayFX( level._effect["collection_fx"], target );
+
+	self.is_traveling = false;
 	
 	if (isdefined(self.script_firefx) && self.script_int == self.max_kills)
 	{
 		PlayFXOnTag(self.script_firefx, self, "tag_origin");
+		self MoveTo (target + (0, 0, 30), 1);
 	}
 
 	if( isdefined( fx_origin ) ) 
@@ -154,36 +179,40 @@ function soul_travel( origin )
 
 function each_count() //self = collector
 {
+	if (!isdefined(self) || self.script_int <= 0 ) //claude ai suggest to confirm exists
+		return;
+
 	self.script_int--;
 
 	IPrintLnBold ("Souls remaining " + self.script_int);
 
 	if( self.script_int <= 0 ) 
 	{
-		if (isdefined(self.target)) //modified this logic, have not tested yet
+		soul_move = struct::get (self.target, "targetname");
+		//move_to = util::spawn_model( "tag_origin", soul_move.origin );
+		if (isdefined(soul_move))
 		{
-			soul_move = struct::get (self.target, "targetname");
-			move_to = util::spawn_model( "tag_origin", soul_move.origin );
-			if (isdefined(soul_move))
-			{
-				IPrintLnBold ( "entered soul move correctly" );
-				//how_long = self.script_waittime;
-				//IPrintLnBold ("Time to move: " + how_long );
-				self MoveTo (soul_move.origin, 3); //manually input 3, variable not working for number
-				wait (3);
-				//soul_move Delete ();
-			}
-			
-			if (isdefined(self.script_notify))
-			{
-				flag = self.script_notify;
-				level notify ( flag );
-				level flag::set ( flag );
-			}
-	
-			ArrayRemoveValue( level.collectors, self );
-			self Delete ();
+			//how_long = self.script_waittime;
+			//IPrintLnBold ("Time to move: " + how_long );
+			self MoveTo (soul_move.origin, 3);
+			wait (3);
+			//soul_move Delete ();
 		}
+		
+		if (isdefined(self.script_notify))
+		{
+			flag = self.script_notify;
+			level notify ( flag );
+			level flag::set ( flag );
+		}
+
+		if(level.collectors.size > 1)
+		{
+			ArrayRemoveValue( level.collectors, self );
+		}
+
+		self Delete ();
+	}
 }
 
 function cleanup_fx_origin( fx_origin )
@@ -201,6 +230,7 @@ function single_reward()
 	// Make up some logic if you want a reward upon completion of a single collector
 	// level.collectors_complete++;
 }
+
 
 
 
