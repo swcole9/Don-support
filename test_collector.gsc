@@ -1,19 +1,3 @@
-#using scripts\codescripts\struct;
-#using scripts\shared\array_shared;
-#using scripts\shared\callbacks_shared;
-#using scripts\shared\flag_shared;
-#using scripts\shared\util_shared;
-#using scripts\zm\_zm_powerups;
-
-// Precache Fx Here
-#precache( "fx", "dlc3/stalingrad/fx_main_anomoly_loop_trail_talk");
-#precache( "fx", "fire/fx_fire_trail_destruct_sm");
-#precache( "fx", "zombie/fx_crafting_dust_zmb");
-#precache( "fx", "explosions/fx_exp_bomb_demo_mp");
-#precache( "fx", "zombie/fx_idgun_ug_hole_lg_zod_zmb");
-#precache( "fx", "light/fx_glow_green_antenna");
-#precache( "fx", "zombie/fx_powerup_grab_green_zmb");
-
 //**********************
 //UPDATE - DEC 10*******
 //**********************
@@ -33,6 +17,11 @@
 //UPDATE - DEC 27*******
 //**********************
 //Changed kills needed to read from kvp on model
+
+//**********************
+//UPDATE - JAN 31*******
+//**********************
+//Added final collector to grow as you collect each soul. Is not working
 
 #using scripts\codescripts\struct;
 #using scripts\shared\array_shared;
@@ -76,7 +65,7 @@ function autoexec init()
 	array::thread_all( collectors, &init_collectors );
 }
 
-function init_collectors()
+function init_collectors() //self = collector
 {
 	level.collectors[level.collectors.size] = self;
 
@@ -92,6 +81,8 @@ function init_collectors()
 	{
 		self.script_float = Int(self.script_float);
 	}
+
+	self.scale = 1;
 
 	self.max_kills = self.script_float;
 
@@ -135,7 +126,9 @@ function watch_for_death()
 		return;
 
 	self waittill( "death" );
+
 	collector = ArrayGetClosest( self.origin, level.collectors );
+	
 	if( isdefined( collector ) ) 
 	{
 		if( can_collect( self.origin, collector ) ) 
@@ -171,9 +164,11 @@ function soul_travel( origin )
 	self.is_traveling = true;
 
 	target = self.origin;
+	height = Int(self.script_string);
 	fx_origin = util::spawn_model( "tag_origin", origin + ( 0, 0, 30 ) );
 	//self thread cleanup_fx_origin( fx_origin );
-	fx = PlayFXOnTag( level._effect["travel_fx"], fx_origin, "tag_origin" );
+	//fx = PlayFXOnTag( level._effect["travel_fx"], fx_origin, "tag_origin" );
+	PlayFXOnTag( level._effect["travel_fx"], fx_origin, "tag_origin" ); //re-written with declaring a variable (fx)
 	fx_origin PlaySound( level.fx_sound );
 	time = Distance( origin, target ) / level.travel_rate;
 	fx_origin MoveTo( target , time );
@@ -182,11 +177,16 @@ function soul_travel( origin )
 	fx_origin waittill( "movedone" );
 	self PlaySound( level.collection_sound );
 	PlayFX( level._effect["collection_fx"], target );
+
+	if (isdefined(self.script_notify) && self.script_notify == "all_souls_complete")
+	{
+		self thread grow_soul ();
+	}
 	
 	if (isdefined(self.script_firefx) && self.script_float == self.max_kills)
 	{
 		PlayFXOnTag(self.script_firefx, self, "tag_origin");
-		self MoveTo (target + (0, 0, 30), 1);
+		self MoveTo (target + (0, 0, height), 1);
 	}
 
 	if( isdefined( fx_origin ) ) 
@@ -194,9 +194,37 @@ function soul_travel( origin )
 		fx_origin Delete();
 	}
 
-	self.is_traveling = false;
+	self.is_traveling = false; 
 
 	self each_count();
+}
+
+function grow_soul ()
+{
+	level endon ("all_souls_complete");
+	self endon ("death");
+
+	scale = 0;
+	finalscale = 2;
+	growth_rate = 0.2;
+
+	while (isdefined(self) && scale < finalscale)
+	{
+		wait (0.015);
+		if(isdefined(self))
+		{
+			self SetScale(self.scale + .001);
+		}
+		if(isdefined(self))
+		{
+			self.scale = self.scale + .001;
+		}
+		scale+=growth_rate;
+		if(isdefined(self) && self.scale>=finalscale)
+		{
+			break;
+		}
+	}
 }
 
 function each_count() //self = collector
@@ -211,13 +239,14 @@ function each_count() //self = collector
 	if( self.script_float <= 0 ) 
 	{
 		soul_move = struct::get (self.target, "targetname");
-	
+		//move_to = util::spawn_model( "tag_origin", soul_move.origin );
 		if (isdefined(soul_move))
 		{
 			//how_long = self.script_waittime;
-			//IPrintLnBold ("Time to move: " + how_long );
-			self MoveTo (soul_move.origin, 3);
-			wait (3);
+			self.is_traveling = true; //set is_traveling to avoid collection during moving to next location
+			self MoveTo (soul_move.origin, 5);
+			wait (5);
+			self.is_traveling = false; //turns off is_traveling to allow collection
 			//soul_move Delete ();
 		}
 		
@@ -237,8 +266,19 @@ function each_count() //self = collector
 	}
 }
 
+function cleanup_fx_origin( fx_origin )
+{
+	fx_origin endon( "death" );
+	self waittill( "collection_complete" );
+	if( isdefined( fx_origin ) ) 
+	{
+		fx_origin Delete();
+	}
+}
+
 function single_reward()
 {
 	// Make up some logic if you want a reward upon completion of a single collector
 	// level.collectors_complete++;
 }
+
